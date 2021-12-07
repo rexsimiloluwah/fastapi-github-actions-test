@@ -37,4 +37,6 @@ class JwtAuthHelper:
             )
 
     def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(HTTPBearer())):
+        if not auth:
+            raise HTTPException(status_code=401, detail="Not Authenticated.")
         return self.decode_jwt(auth.credentials)

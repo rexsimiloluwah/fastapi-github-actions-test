@@ -1,5 +1,11 @@
 from schemas import UserUpdateSchema, BucketSchema
-from models import User as UserModel, Bucket as BucketModel
+from db.models import User as UserModel, Bucket as BucketModel
+from db.repository.user import query_user_by_email, query_user_by_id
+from db.repository.bucket import (
+    query_bucket_by_user_id,
+    query_buckets_by_user_id,
+    query_user_buckets_by_visibility,
+)
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -13,10 +19,10 @@ def get_user(db: Session, user_id: int):
         user_id {int} - User ID
     @Requires Auth: True
     """
-    user = db.query(UserModel).filter_by(id=user_id).first()
+    user = query_user_by_id(db, user_id)
     if not user:
         raise HTTPException(detail="User does not exist.", status_code=404)
-    user_buckets = db.query(BucketModel).filter_by(user_id=user_id).all()
+    user_buckets = query_buckets_by_user_id(db, user_id)
     return {
         "status": True,
         "message": "Successfully fetched user.",
@@ -39,7 +45,7 @@ def update_user(db: Session, user_data: UserUpdateSchema, user_id: int):
         raise HTTPException(detail="User does not exist.", status_code=404)
     existing_user.update(user_data.dict())
     db.commit()
-    updated_user = db.query(UserModel).filter_by(id=user_id).first()
+    updated_user = query_user_by_id(db, user_id)
     return {
         "status": True,
         "message": "Successfully updated user.",
@@ -56,7 +62,7 @@ def delete_user(db: Session, user_id: int):
         user_id {int} - User ID
     @Requires Auth: True
     """
-    existing_user = db.query(UserModel).filter_by(id=user_id).first()
+    existing_user = query_user_by_id(db, user_id)
     if not existing_user:
         raise HTTPException(detail="User does not exist.", status_code=404)
     db.delete(existing_user)
@@ -77,11 +83,11 @@ def get_user_by_id(db: Session, user_id: int):
         user_id {int} - User ID
     @Requires Auth: False
     """
-    user = db.query(UserModel).filter_by(id=user_id).first()
+    user = query_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User does not exist.")
-    user_public_buckets = (
-        db.query(BucketModel).filter_by(user_id=user_id, visibility="public").all()
+    user_public_buckets = query_user_buckets_by_visibility(
+        db, user_id, visibility="public  "
     )
     return {
         "status": True,
@@ -99,7 +105,7 @@ def get_user_buckets(db: Session, user_id: int):
         user_id {int} - User ID
     @Requires Auth: True
     """
-    user_buckets = db.query(BucketModel).filter_by(user_id=user_id).all()
+    user_buckets = query_buckets_by_user_id(db, user_id)
     if not user_buckets:
         raise HTTPException(detail="No buckets for this user.", status_code=404)
     return {
@@ -119,7 +125,7 @@ def get_user_bucket_by_id(db: Session, user_id: int, bucket_id: int):
         bucket_id {int} - Bucket ID
     @Requires Auth: True
     """
-    user_bucket = db.query(BucketModel).filter_by(id=bucket_id, user_id=user_id).first()
+    user_bucket = query_bucket_by_user_id(db, user_id, bucket_id)
     print(user_bucket)
     if not user_bucket:
         raise HTTPException(detail="User bucket does not exist.", status_code=404)

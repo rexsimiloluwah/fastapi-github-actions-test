@@ -65,8 +65,8 @@ class BucketSchema(BaseModel):
 
 
 class BucketUpdateSchema(BaseModel):
-    goal: str
-    category: str
+    goal: Optional[str]
+    category: Optional[str]
     active: bool = True
     visibility: str = "private"
     due_date: datetime = None

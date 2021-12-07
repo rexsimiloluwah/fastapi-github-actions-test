@@ -1,5 +1,6 @@
 from schemas import UserRegisterSchema, UserLoginSchema
-from models import User as UserModel, Bucket as BucketModel
+from db.models import User as UserModel, Bucket as BucketModel
+from db.repository.user import query_user_by_email, add_user
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from helpers.auth import JwtAuthHelper
@@ -17,29 +18,23 @@ def create_user(db: Session, user_data: UserRegisterSchema):
     @Requires Auth: False
     """
     try:
-        existing_user = db.query(UserModel).filter_by(email=user_data.email).first()
+        existing_user = query_user_by_email(db, user_data.email)
         if existing_user:
             raise HTTPException(
                 status_code=400, detail="A user with this email already exists."
             )
-        user = UserModel(
-            email=user_data.email,
-            username=user_data.username,
-            bio=user_data.bio,
-            location=user_data.location,
-            phone_number=user_data.phone_number,
-            website=user_data.website,
-        )
-        user.set_password(user_data.password)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return {
-            "status": True,
-            "message": "User successfully registered.",
-            "data": user,
-        }
+
+        user = add_user(db, user_data)
+        if user:
+            return {
+                "status": True,
+                "message": "User successfully registered.",
+                "data": user,
+            }
+        else:
+            raise HTTPException(status_code=422, detail="User registration failed.")
     except Exception as e:
+        print(e)
         raise HTTPException(detail=str(e), status_code=400)
 
 
@@ -53,7 +48,7 @@ def create_access_token(db: Session, email: str, password: str):
         password {str} - User Password
     @Requires Auth: False
     """
-    user = db.query(UserModel).filter_by(email=email).first()
+    user = query_user_by_email(db, email)
     if not user:
         raise HTTPException(
             status_code=404, detail={"status": False, "message": "User does not exist."}

@@ -1,8 +1,16 @@
 from typing import List
-from schemas import BucketSchema
+from schemas import BucketSchema, BucketUpdateSchema
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from models import User as UserModel, Bucket as BucketModel
+from db.models import User as UserModel, Bucket as BucketModel
+from db.repository.bucket import (
+    query_bucket_by_id,
+    query_bucket_by_user_id,
+    query_buckets_by_user_id,
+    add_single_bucket,
+    add_multiple_buckets,
+    query_buckets_by_visibility,
+)
 
 
 def create_new_bucket(db: Session, bucket_data: BucketSchema, user_id: int):
@@ -16,15 +24,15 @@ def create_new_bucket(db: Session, bucket_data: BucketSchema, user_id: int):
     @Requires Auth: True
     """
     try:
-        new_bucket = BucketModel(**bucket_data.dict(), user_id=user_id)
-        db.add(new_bucket)
-        db.commit()
-        db.refresh(new_bucket)
-        return {
-            "status": True,
-            "message": "New bucket successfully added to bucket list.",
-            "data": new_bucket,
-        }
+        new_bucket = add_single_bucket(db, bucket_data, user_id)
+        if new_bucket:
+            return {
+                "status": True,
+                "message": "New bucket successfully added to bucket list.",
+                "data": new_bucket,
+            }
+        else:
+            raise HTTPException(status_code=422, detail="Bucket creation failed.")
     except Exception as e:
         raise HTTPException(detail=str(e), status_code=400)
 
@@ -38,23 +46,24 @@ def create_new_buckets(db: Session, buckets_data: List[BucketSchema], user_id: i
         buckets_data {[BucketSchema]} - List of buckets to be added
         user_id {int} - User ID
     """
-    new_buckets = [
-        BucketModel(**bucket_data.dict(), user_id=user_id)
-        for bucket_data in buckets_data
-    ]
     try:
-        db.bulk_save_objects(new_buckets)
-        db.commit()
-        return {
-            "status": True,
-            "message": f"{len(buckets_data)} buckets successfully added to bucket list.",
-            "data": buckets_data,
-        }
+        new_buckets = add_multiple_buckets(db, buckets_data, user_id)
+        print(new_buckets)
+        if new_buckets:
+            return {
+                "status": True,
+                "message": f"{len(buckets_data)} buckets successfully added to bucket list.",
+                "data": buckets_data,
+            }
+        else:
+            raise HTTPException(status_code=422, detail="Buckets creation failed.")
     except Exception as e:
         raise HTTPException(detail=str(e), status_code=400)
 
 
-def update_bucket(db: Session, bucket_data: BucketSchema, user_id: int, bucket_id: int):
+def update_bucket(
+    db: Session, bucket_data: BucketUpdateSchema, user_id: int, bucket_id: int
+):
     """
     @Route: PUT /api/v1/bucket/{bucket_id}
     @Description: Update an existing bucket
@@ -70,10 +79,11 @@ def update_bucket(db: Session, bucket_data: BucketSchema, user_id: int, bucket_i
         raise HTTPException(detail="Bucket not found.", status_code=404)
     existing_bucket.update(bucket_data.dict())
     db.commit()
+    updated_bucket = query_bucket_by_id(db, bucket_id)
     return {
         "status": True,
         "message": "New bucket successfully added to bucket list.",
-        "data": existing_bucket.first(),
+        "data": updated_bucket,
     }
 
 
@@ -86,7 +96,7 @@ def delete_bucket(db: Session, user_id: int, bucket_id: int):
         bucket_id {int} - ID of bucket to be deleted from the database
         user_id {int} - User ID
     """
-    existing_bucket = db.query(BucketModel).filter_by(id=bucket_id).first()
+    existing_bucket = query_bucket_by_id(db, bucket_id)
     if not existing_bucket:
         raise HTTPException(detail="Bucket not found.", status_code=404)
     db.delete(existing_bucket)
@@ -106,7 +116,7 @@ def get_all_public_buckets(db: Session):
         db {Session} - Database session
     @Requires Auth: True
     """
-    public_buckets = db.query(BucketModel).filter_by(visibility="public").all()
+    public_buckets = query_buckets_by_visibility(db, visibility="public")
     if not public_buckets:
         raise HTTPException(detail="No public buckets found.", status_code=404)
     return {
