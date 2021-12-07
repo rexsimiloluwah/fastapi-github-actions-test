@@ -9,7 +9,6 @@ from typing import List
 router = APIRouter()
 auth_helper = JwtAuthHelper()
 
-
 @router.post("/bucket", response_model=dict)
 def create_bucket(
     bucket_data: BucketSchema,
