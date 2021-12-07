@@ -12,8 +12,7 @@ auth_helper = JwtAuthHelper()
 @router.post("/bucket", response_model=dict)
 def create_bucket(
     bucket_data: BucketSchema,
-    db: Session = Depends(get_db),
-    user_id: int = Depends(auth_helper.auth_wrapper),
+    db: Session = Depends(get_db),user_id: int = Depends(auth_helper.auth_wrapper),
 ):
     return bucket_controller.create_new_bucket(db, bucket_data, user_id)
 
